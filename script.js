@@ -20,6 +20,15 @@ function debounce(func, delay) {
   };
 }
 
+// Mapping pour les abréviations des stats
+const statAbbreviations = {
+  attack: "Atk",
+  defense: "Def",
+  "special-attack": "SpA",
+  "special-defense": "SpD",
+  speed: "Spe",
+};
+
 // Mapping pour les icônes de type
 const typeImages = {
   normal:
@@ -184,10 +193,7 @@ function createPokemonCard(data) {
       .filter((stat) => stat.stat.name !== "hp")
       .map((stat) => {
         const widthPercent = Math.min((stat.base_stat / 150) * 100, 100);
-        const statInitial = stat.stat.name
-          .split("-")
-          .map((w) => w[0].toUpperCase())
-          .join("-");
+        const statInitial = statAbbreviations[stat.stat.name] || stat.stat.name;
         const fillColor = stat.base_stat > 100 ? "#e74c3c" : "#363a3a";
         return `
           <div class="stat-bar">
@@ -334,10 +340,7 @@ function openOverlay(data) {
       .filter((stat) => stat.stat.name !== "hp")
       .map((stat) => {
         const widthPercent = Math.min((stat.base_stat / 150) * 100, 100);
-        const statInitial = stat.stat.name
-          .split("-")
-          .map((w) => w[0].toUpperCase())
-          .join("-");
+        const statInitial = statAbbreviations[stat.stat.name] || stat.stat.name;
         const fillColor = stat.base_stat > 100 ? "#e74c3c" : "#363a3a";
         return `
           <div class="stat-bar">

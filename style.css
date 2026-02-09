@@ -9,6 +9,7 @@ body {
   top: 0;
   left: 0;
   right: 0;
+  height: 65px;
   width: 100%;
   background: linear-gradient(
     135deg,
@@ -25,12 +26,13 @@ body {
 }
 
 #search-container #search {
+  height: 40px;
   width: 400px;
   max-width: 90%;
   padding: 12px 20px;
   border: none;
   border-radius: 25px;
-  font-size: 16px;
+  font-size: 20px;
   background: rgba(255, 255, 255, 0.9);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   transition: all 0.3s ease;
