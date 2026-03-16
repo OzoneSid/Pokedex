@@ -1,5 +1,6 @@
 const container = document.getElementById("pokemon-container");
 const searchInput = document.getElementById("search");
+const loader = document.getElementById("loader");
 
 const overlay = document.getElementById("overlay");
 const overlayContent = overlay.querySelector(".overlay-content");
@@ -10,8 +11,9 @@ let offset = 0;
 const limit = 50;
 let isLoading = false;
 let searchAbortController = null;
+let frenchToEnglish = new Map();
 
-// Debounce function for search
+// Debounced function for search
 function debounce(func, delay) {
   let timeoutId;
   return function (...args) {
@@ -89,6 +91,54 @@ async function fetchFrenchName(pokemonId) {
   } catch (err) {
     console.error("Error fetching French name:", err);
     return { frenchName: null, frFlavorText: null };
+  }
+}
+
+// One-time preload of French names
+async function loadFrenchNames() {
+  try {
+    // Get total count of species
+    const countResp = await fetch(
+      "https://pokeapi.co/api/v2/pokemon-species?limit=1",
+    );
+    const countData = await countResp.json();
+    const total = countData.count;
+
+    let offset = 0;
+    const batchLimit = 50;
+
+    while (offset < total) {
+      const listResp = await fetch(
+        `https://pokeapi.co/api/v2/pokemon-species?offset=${offset}&limit=${batchLimit}`,
+      );
+      const listData = await listResp.json();
+
+      // Fetch details for each species in the batch
+      const promises = listData.results.map(async (species) => {
+        try {
+          const speciesResp = await fetch(species.url);
+          const speciesData = await speciesResp.json();
+          const frNameObj = speciesData.names.find(
+            (n) => n.language.name === "fr",
+          );
+          if (frNameObj) {
+            frenchToEnglish.set(
+              frNameObj.name.toLowerCase(),
+              species.name.toLowerCase(),
+            );
+          }
+        } catch (err) {
+          console.error("Error loading species:", err);
+        }
+      });
+
+      await Promise.all(promises);
+      offset += batchLimit;
+    }
+
+    console.log("French names loaded:", frenchToEnglish.size);
+  } catch (err) {
+    console.error("Error preloading French names:", err);
   }
 }
 
@@ -182,7 +232,7 @@ function createPokemonCard(data) {
     const img = document.createElement("img");
     img.src = data.sprite;
     img.alt = data.englishName;
-    img.onerror = () => (img.src = ""); // Handle broken images
+    img.onerror = () => (img.src = "");
     imgDiv.appendChild(img);
     cardInner.appendChild(imgDiv);
 
@@ -259,15 +309,23 @@ const debouncedSearch = debounce(async (value) => {
       return;
     }
 
-    let filtered = allPokemons.filter((p) =>
-      p.frenchName.toLowerCase().startsWith(value),
+    let filtered = allPokemons.filter(
+      (p) =>
+        p.frenchName.toLowerCase().startsWith(value) ||
+        p.englishName.toLowerCase().startsWith(value),
     );
 
     if (filtered.length === 0) {
       try {
+        // Check if input is a French name, map to English
+        let searchName = value;
+        if (frenchToEnglish.has(value)) {
+          searchName = frenchToEnglish.get(value);
+        }
+
         // Search by English name
         const response = await fetch(
-          `https://pokeapi.co/api/v2/pokemon/${value}`,
+          `https://pokeapi.co/api/v2/pokemon/${searchName}`,
           { signal: searchAbortController.signal },
         );
         if (!response.ok) throw new Error("Pokémon not found");
@@ -329,9 +387,9 @@ searchInput.addEventListener("input", (e) => {
   debouncedSearch(value);
 });
 
+// Générer le HTML de la carte dans l'overlay
 function openOverlay(data) {
   try {
-    // Générer le HTML de la carte dans l'overlay
     const hpStat = data.stats.find((stat) => stat.stat.name === "hp");
     const hp = hpStat ? hpStat.base_stat : 0;
     const firstType = data.types[0] || "normal";
@@ -388,6 +446,10 @@ overlay.addEventListener("click", (e) => {
 
 // Chargement initial
 (async () => {
+  loader.style.display = "flex"; // Show loader
+  await loadFrenchNames(); // One-time preload
+  loader.style.display = "none"; // Hide loader
+
   searchInput.disabled = true;
   await loadPokemonBatch(); // Charge le premier batch
   searchInput.disabled = false;
