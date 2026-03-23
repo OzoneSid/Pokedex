@@ -1,6 +1,5 @@
 const container = document.getElementById("pokemon-container");
 const searchInput = document.getElementById("search");
-const loader = document.getElementById("loader");
 
 const overlay = document.getElementById("overlay");
 const overlayContent = overlay.querySelector(".overlay-content");
@@ -11,7 +10,23 @@ let offset = 0;
 const limit = 50;
 let isLoading = false;
 let searchAbortController = null;
-let frenchToEnglish = new Map();
+let frenchToEnglish = {};
+
+fetch("french-to-english.json")
+  .then((res) => res.json())
+  .then((data) => {
+    frenchToEnglish = data;
+    console.log("Dictionnaire français → anglais chargé !");
+  })
+  .catch((err) => console.error("Erreur chargement JSON:", err));
+
+// Convertir les noms
+function getEnglishName(frenchName) {
+  // Casse ignorée
+  const formattedName =
+    frenchName.charAt(0).toUpperCase() + frenchName.slice(1).toLowerCase();
+  return frenchToEnglish[formattedName] || frenchName;
+}
 
 // Debounced function for search
 function debounce(func, delay) {
@@ -66,82 +81,6 @@ const typeImages = {
     "https://raw.githubusercontent.com/partywhale/pokemon-type-icons/fcbe6978c61c359680bc07636c3f9bdc0f346b43/icons/fairy.svg",
 };
 
-// Fetch French name for a Pokemon
-async function fetchFrenchName(pokemonId) {
-  try {
-    const speciesResp = await fetch(
-      `https://pokeapi.co/api/v2/pokemon-species/${pokemonId}`,
-    );
-    if (!speciesResp.ok) throw new Error("Species not found");
-    const species = await speciesResp.json();
-
-    // Extract French name
-    const frNameObj = species.names.find((n) => n.language.name === "fr");
-    const frenchName = frNameObj
-      ? frNameObj.name.charAt(0).toUpperCase() + frNameObj.name.slice(1)
-      : null;
-
-    // Extract French flavor text (description)
-    const frFlavorText =
-      species.flavor_text_entries
-        ?.find((entry) => entry.language.name === "fr")
-        ?.flavor_text.replace(/\n/g, " ") || null;
-
-    return { frenchName, frFlavorText };
-  } catch (err) {
-    console.error("Error fetching French name:", err);
-    return { frenchName: null, frFlavorText: null };
-  }
-}
-
-// One-time preload of French names
-async function loadFrenchNames() {
-  try {
-    // Get total count of species
-    const countResp = await fetch(
-      "https://pokeapi.co/api/v2/pokemon-species?limit=1",
-    );
-    const countData = await countResp.json();
-    const total = countData.count;
-
-    let offset = 0;
-    const batchLimit = 50;
-
-    while (offset < total) {
-      const listResp = await fetch(
-        `https://pokeapi.co/api/v2/pokemon-species?offset=${offset}&limit=${batchLimit}`,
-      );
-      const listData = await listResp.json();
-
-      // Fetch details for each species in the batch
-      const promises = listData.results.map(async (species) => {
-        try {
-          const speciesResp = await fetch(species.url);
-          const speciesData = await speciesResp.json();
-          const frNameObj = speciesData.names.find(
-            (n) => n.language.name === "fr",
-          );
-          if (frNameObj) {
-            frenchToEnglish.set(
-              frNameObj.name.toLowerCase(),
-              species.name.toLowerCase(),
-            );
-          }
-        } catch (err) {
-          console.error("Error loading species:", err);
-        }
-      });
-
-      await Promise.all(promises);
-      offset += batchLimit;
-    }
-
-    console.log("French names loaded:", frenchToEnglish.size);
-  } catch (err) {
-    console.error("Error preloading French names:", err);
-  }
-}
-
 // Charge un "batch" de Pokémon depuis l'API
 async function loadPokemonBatch() {
   if (isLoading) return;
@@ -156,34 +95,36 @@ async function loadPokemonBatch() {
 
     const promises = data.results.map(async (p) => {
       try {
-        // Extract Pokemon ID from URL instead of making extra request
         const urlParts = p.url.split("/");
         const pokemonId = urlParts[urlParts.length - 2];
 
-        // Fetch direct from ID - more efficient
         const detailsResp = await fetch(
           `https://pokeapi.co/api/v2/pokemon/${pokemonId}`,
         );
         if (!detailsResp.ok) throw new Error("Pokemon details not found");
         const details = await detailsResp.json();
 
-        // Fetch French name
-        const { frenchName, frFlavorText } = await fetchFrenchName(details.id);
-        const finalName =
-          frenchName ||
-          details.name.charAt(0).toUpperCase() + details.name.slice(1);
-
         const sprite = details.sprites?.front_default;
         if (!sprite) return null;
+
+        // Nom français depuis le dictionnaire
+        const frenchName =
+          Object.keys(frenchToEnglish).find(
+            (fr) =>
+              frenchToEnglish[fr].toLowerCase() === details.name.toLowerCase(),
+          ) || details.name.charAt(0).toUpperCase() + details.name.slice(1);
+
+        // Description française vide (ou à récupérer si tu veux plus tard)
+        const frFlavorText = "";
 
         return {
           id: details.id,
           englishName: details.name.toLowerCase(),
-          frenchName: finalName,
-          frFlavorText: frFlavorText,
+          frenchName,
+          frFlavorText,
           types: details.types?.map((t) => t.type.name) || [],
           stats: details.stats || [],
-          sprite: sprite,
+          sprite,
         };
       } catch (err) {
         console.error("Error processing Pokemon:", err);
@@ -191,10 +132,9 @@ async function loadPokemonBatch() {
       }
     });
 
-    let pokemons = await Promise.all(promises);
-    pokemons = pokemons.filter((p) => p !== null);
+    const pokemons = (await Promise.all(promises)).filter((p) => p !== null);
     allPokemons.push(...pokemons);
-    DisplayPokemon(pokemons);
+    displayPokemon(pokemons);
 
     offset += limit;
   } catch (err) {
@@ -277,7 +217,7 @@ function createPokemonCard(data) {
 }
 
 // Affiche plusieurs Pokémon
-function DisplayPokemon(pokemons) {
+function displayPokemon(pokemons) {
   for (const p of pokemons) {
     createPokemonCard(p);
   }
@@ -295,7 +235,6 @@ window.addEventListener("scroll", () => {
 
 // Debounced search function
 const debouncedSearch = debounce(async (value) => {
-  // Cancel previous search if any
   if (searchAbortController) {
     searchAbortController.abort();
   }
@@ -305,81 +244,83 @@ const debouncedSearch = debounce(async (value) => {
     container.innerHTML = "";
 
     if (!value) {
-      DisplayPokemon(allPokemons);
+      displayPokemon(allPokemons);
       return;
     }
 
+    const searchValue = value.toLowerCase();
+
+    // Filtrer les Pokémon déjà chargés
     let filtered = allPokemons.filter(
       (p) =>
-        p.frenchName.toLowerCase().startsWith(value) ||
-        p.englishName.toLowerCase().startsWith(value),
+        p.frenchName.toLowerCase().startsWith(searchValue) ||
+        p.englishName.toLowerCase().startsWith(searchValue),
     );
 
     if (filtered.length === 0) {
       try {
-        // Check if input is a French name, map to English
-        let searchName = value;
-        if (frenchToEnglish.has(value)) {
-          searchName = frenchToEnglish.get(value);
-        }
+        // Convertir nom français en anglais si besoin
+        const englishName =
+          Object.entries(frenchToEnglish).find(
+            ([fr, en]) => fr.toLowerCase() === searchValue,
+          )?.[1] || value;
 
-        // Search by English name
         const response = await fetch(
-          `https://pokeapi.co/api/v2/pokemon/${searchName}`,
+          `https://pokeapi.co/api/v2/pokemon/${englishName.toLowerCase()}`,
           { signal: searchAbortController.signal },
         );
-        if (!response.ok) throw new Error("Pokémon not found");
+        if (!response.ok) throw new Error("Pokémon non trouvé");
 
         const details = await response.json();
-
-        // Récupérer le nom français
-        const { frenchName } = await fetchFrenchName(details.id);
-        const finalName =
-          frenchName ||
-          details.name.charAt(0).toUpperCase() + details.name.slice(1);
-
         const sprite = details.sprites?.front_default;
         if (!sprite) {
-          container.innerHTML = `
-            <div class="card-inner">
-              <div class="card-header">
-                <span class="name">Pokémon non trouvé</span>
-              </div>
-            </div>`;
+          displayNotFound();
           return;
         }
+
+        const frenchName =
+          Object.keys(frenchToEnglish).find(
+            (fr) =>
+              frenchToEnglish[fr].toLowerCase() === details.name.toLowerCase(),
+          ) || details.name.charAt(0).toUpperCase() + details.name.slice(1);
 
         const pokemonData = {
           id: details.id,
           englishName: details.name.toLowerCase(),
-          frenchName: finalName,
+          frenchName: frenchName,
           types: details.types?.map((t) => t.type.name) || [],
           stats: details.stats || [],
           sprite: sprite,
         };
 
-        // Affiche le Pokémon trouvé
         createPokemonCard(pokemonData);
-        // Ajouter à "allPokemons" pour éviter de refaire la requête
-        allPokemons.push(pokemonData);
+        if (!allPokemons.some((p) => p.id === pokemonData.id)) {
+          allPokemons.push(pokemonData);
+        }
       } catch (err) {
         if (err.name !== "AbortError") {
           console.error("Search error:", err);
-          container.innerHTML = `
-            <div class="card-inner">
-              <div class="card-header">
-                <span class="name">Pokémon ???</span>
-              </div>
-            </div>`;
+          displayNotFound();
         }
       }
     } else {
-      DisplayPokemon(filtered);
+      displayPokemon(filtered);
     }
   } catch (err) {
     console.error("Error in search:", err);
   }
 }, 300);
+
+// Fonction pour afficher un Pokémon non trouvé proprement
+function displayNotFound() {
+  const card = document.createElement("div");
+  card.classList.add("card-inner");
+  const header = document.createElement("div");
+  header.classList.add("card-header");
+  header.textContent = "Pokémon non trouvé";
+  card.appendChild(header);
+  container.appendChild(card);
+}
 
 // Recherche par nom français avec debounce
 searchInput.addEventListener("input", (e) => {
@@ -446,10 +387,6 @@ overlay.addEventListener("click", (e) => {
 
 // Chargement initial
 (async () => {
-  loader.style.display = "flex"; // Show loader
-  await loadFrenchNames(); // One-time preload
-  loader.style.display = "none"; // Hide loader
-
   searchInput.disabled = true;
   await loadPokemonBatch(); // Charge le premier batch
   searchInput.disabled = false;
