@@ -8,6 +8,7 @@ const closeBtn = overlay.querySelector(".close-btn");
 let allPokemons = [];
 let offset = 0;
 const limit = 50;
+const MAX_POKEMONS = 1024;
 let isLoading = false;
 let searchAbortController = null;
 let frenchToEnglish = {};
@@ -83,7 +84,7 @@ const typeImages = {
 
 // Charge un "batch" de Pokémon depuis l'API
 async function loadPokemonBatch() {
-  if (isLoading) return;
+  if (isLoading || allPokemons.length >= MAX_POKEMONS) return;
   isLoading = true;
 
   try {
@@ -136,7 +137,10 @@ async function loadPokemonBatch() {
     allPokemons.push(...pokemons);
     displayPokemon(pokemons);
 
-    offset += limit;
+    // Stop loading more batches if we've reached the maximum
+    if (allPokemons.length < MAX_POKEMONS) {
+      offset += limit;
+    }
   } catch (err) {
     console.error("Error loading Pokemon batch:", err);
   } finally {
