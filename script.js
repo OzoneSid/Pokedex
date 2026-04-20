@@ -7,7 +7,7 @@ const closeBtn = overlay.querySelector(".close-btn");
 
 let allPokemons = [];
 let offset = 0;
-const limit = 50;
+const limit = 25;
 const MAX_POKEMONS = 1024;
 let isLoading = false;
 let searchAbortController = null;
@@ -99,9 +99,11 @@ async function loadPokemonBatch() {
         const urlParts = p.url.split("/");
         const pokemonId = urlParts[urlParts.length - 2];
 
-        const detailsResp = await fetch(
-          `https://pokeapi.co/api/v2/pokemon/${pokemonId}`,
-        );
+        const [detailsResp, speciesResp] = await Promise.all([
+          fetch(`https://pokeapi.co/api/v2/pokemon/${pokemonId}`),
+          fetch(`https://pokeapi.co/api/v2/pokemon-species/${pokemonId}`),
+        ]);
+
         if (!detailsResp.ok) throw new Error("Pokemon details not found");
         const details = await detailsResp.json();
 
@@ -115,8 +117,17 @@ async function loadPokemonBatch() {
               frenchToEnglish[fr].toLowerCase() === details.name.toLowerCase(),
           ) || details.name.charAt(0).toUpperCase() + details.name.slice(1);
 
-        // Description française vide (ou à récupérer si tu veux plus tard)
-        const frFlavorText = "";
+        // Description française depuis species
+        let frFlavorText = "";
+        if (speciesResp.ok) {
+          const species = await speciesResp.json();
+          const flavorEntry = species.flavor_text_entries.find(
+            (entry) => entry.language.name === "fr",
+          );
+          frFlavorText = (flavorEntry?.flavor_text || "")
+            .replace(/\s+/g, " ")
+            .trim();
+        }
 
         return {
           id: details.id,
@@ -269,10 +280,16 @@ const debouncedSearch = debounce(async (value) => {
             ([fr, en]) => fr.toLowerCase() === searchValue,
           )?.[1] || value;
 
-        const response = await fetch(
-          `https://pokeapi.co/api/v2/pokemon/${englishName.toLowerCase()}`,
-          { signal: searchAbortController.signal },
-        );
+        const [response, speciesResp] = await Promise.all([
+          fetch(
+            `https://pokeapi.co/api/v2/pokemon/${englishName.toLowerCase()}`,
+            { signal: searchAbortController.signal },
+          ),
+          fetch(
+            `https://pokeapi.co/api/v2/pokemon-species/${englishName.toLowerCase()}`,
+            { signal: searchAbortController.signal },
+          ),
+        ]);
         if (!response.ok) throw new Error("Pokémon non trouvé");
 
         const details = await response.json();
@@ -288,10 +305,22 @@ const debouncedSearch = debounce(async (value) => {
               frenchToEnglish[fr].toLowerCase() === details.name.toLowerCase(),
           ) || details.name.charAt(0).toUpperCase() + details.name.slice(1);
 
+        let frFlavorText = "";
+        if (speciesResp.ok) {
+          const species = await speciesResp.json();
+          const flavorEntry = species.flavor_text_entries.find(
+            (entry) => entry.language.name === "fr",
+          );
+          frFlavorText = (flavorEntry?.flavor_text || "")
+            .replace(/\s+/g, " ")
+            .trim();
+        }
+
         const pokemonData = {
           id: details.id,
           englishName: details.name.toLowerCase(),
           frenchName: frenchName,
+          frFlavorText,
           types: details.types?.map((t) => t.type.name) || [],
           stats: details.stats || [],
           sprite: sprite,
