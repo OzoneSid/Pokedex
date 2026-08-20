@@ -1,5 +1,6 @@
 const container = document.getElementById("pokemon-container");
 const searchInput = document.getElementById("search");
+const loader = document.getElementById("loading-screen");
 
 const overlay = document.getElementById("overlay");
 const overlayContent = overlay.querySelector(".overlay-content");
@@ -27,6 +28,15 @@ function getEnglishName(frenchName) {
   const formattedName =
     frenchName.charAt(0).toUpperCase() + frenchName.slice(1).toLowerCase();
   return frenchToEnglish[formattedName] || frenchName;
+}
+
+// Ecran de chargement on/off
+function showLoader() {
+  loader.classList.remove("loader-hidden");
+}
+
+function hideLoader() {
+  loader.classList.add("loader-hidden");
 }
 
 // Debounced function for search
@@ -82,7 +92,7 @@ const typeImages = {
     "https://raw.githubusercontent.com/partywhale/pokemon-type-icons/fcbe6978c61c359680bc07636c3f9bdc0f346b43/icons/fairy.svg",
 };
 
-// Charge un "batch" de Pokémon depuis l'API
+// Charge un batch de Pokémon depuis l'API
 async function loadPokemonBatch() {
   if (isLoading || allPokemons.length >= MAX_POKEMONS) return;
   isLoading = true;
@@ -148,7 +158,7 @@ async function loadPokemonBatch() {
     allPokemons.push(...pokemons);
     displayPokemon(pokemons);
 
-    // Stop loading more batches if we've reached the maximum
+    // Stop loading more batches if maximum reached
     if (allPokemons.length < MAX_POKEMONS) {
       offset += limit;
     }
@@ -421,6 +431,10 @@ overlay.addEventListener("click", (e) => {
 // Chargement initial
 (async () => {
   searchInput.disabled = true;
+  showLoader();
+
   await loadPokemonBatch(); // Charge le premier batch
+
+  hideLoader();
   searchInput.disabled = false;
 })();
