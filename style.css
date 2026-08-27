@@ -44,6 +44,19 @@ body {
   transition: opacity 400ms ease;
 }
 
+.batch-loader {
+  grid-column: 0;
+  display: grid;
+  place-items: center;
+  min-height: 180px;
+}
+
+.batch-loader .loader-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0;
+}
+
 .loader-icon {
   height: 30%;
   width: 30%;
@@ -108,7 +121,7 @@ body {
   grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   gap: 2px;
   margin: 50px;
-  padding: auto;
+  padding: 1rem;
 }
 
 .pokemon-card {
@@ -117,9 +130,23 @@ body {
   padding: 10px;
   border-radius: 9px;
   cursor: pointer;
+  animation: cardEntrance 350ms ease-out both;
+  animation-delay: var(--card-delay, 0ms);
   transition:
     transform 0.25s ease,
     box-shadow 0.25s ease;
+}
+
+@keyframes cardEntrance {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .pokemon-card::before {
@@ -487,11 +514,18 @@ body {
   }
 
   .pokemon-card {
+    box-sizing: border-box;
     z-index: 0;
+    width: fit-content;
   }
 
   .pokemon-card::before {
     inset: 0;
+  }
+
+  .card-inner {
+    box-sizing: border-box;
+    width: 99%;
   }
 
   #overlay .overlay-card {

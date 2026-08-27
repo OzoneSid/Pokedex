@@ -39,6 +39,23 @@ function hideLoader() {
   loader.classList.add("loader-hidden");
 }
 
+// Icone chargement batch
+function showBatchLoader() {
+  const batchLoader = document.createElement("div");
+  batchLoader.classList.add("batch-loader");
+
+  batchLoader.innerHTML = `
+    <img
+      class="loader-icon"
+      src="https://upload.wikimedia.org/wikipedia/commons/5/53/Pok%C3%A9_Ball_icon.svg"
+      alt="Chargement"
+    />
+  `;
+
+  container.appendChild(batchLoader);
+  return batchLoader;
+}
+
 // Debounced function for search
 function debounce(func, delay) {
   let timeoutId;
@@ -96,6 +113,8 @@ const typeImages = {
 async function loadPokemonBatch() {
   if (isLoading || allPokemons.length >= MAX_POKEMONS) return;
   isLoading = true;
+
+  const batchLoader = showBatchLoader();
 
   try {
     const response = await fetch(
@@ -165,12 +184,15 @@ async function loadPokemonBatch() {
   } catch (err) {
     console.error("Error loading Pokemon batch:", err);
   } finally {
+    if (batchLoader.isConnected) {
+      batchLoader.remove();
+    }
     isLoading = false;
   }
 }
 
 // Fonction pour créer la carte d'un Pokémon
-function createPokemonCard(data) {
+function createPokemonCard(data, index = 0) {
   try {
     const card = document.createElement("div");
     card.classList.add("pokemon-card");
@@ -235,6 +257,10 @@ function createPokemonCard(data) {
       cardInner.style.background = `linear-gradient(135deg, var(--${type1}), #ffffff)`;
     }
 
+    // Délai pour l'apparition une par une
+    const delay = Math.min(index * 40, 240);
+    card.style.setProperty("--card-delay", `${delay}ms`);
+
     container.appendChild(card);
   } catch (err) {
     console.error("Error creating Pokemon card:", err);
@@ -243,9 +269,9 @@ function createPokemonCard(data) {
 
 // Affiche plusieurs Pokémon
 function displayPokemon(pokemons) {
-  for (const p of pokemons) {
-    createPokemonCard(p);
-  }
+  pokemons.forEach((pokemon, index) => {
+    createPokemonCard(pokemon, index);
+  });
 }
 
 // Scroll infini
